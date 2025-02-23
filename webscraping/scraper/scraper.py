@@ -3,19 +3,17 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
 import requests
 import logging
-from parser import *
-from utils import *
+from scraper.parser import *
+from scraper.utils import *
 
 class Scrap_Selenium:
 
     def __init__(self, url):
-        self.url = url
-
-    def fetch_html_selenium(self, url):
-        '''Obtiene el HTML de la página usando Selenium.'''
         options = Options()
         # options.add_argument("--headless")  
         # options.add_argument("--disable-gpu")
@@ -23,24 +21,15 @@ class Scrap_Selenium:
         # options.add_argument("--window-size=1920,1080")
 
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        self.driver.get(url)
 
-        try:
-            self.driver.get(url)
-            time.sleep(3)
-
-            page_source = self.driver.page_source # Extraemos el HTML después de que se cargue
-            logging.info(f'Página {url} descargada exitosamente con Selenium')
-            return page_source
+    def fetch_html_selenium(self):
+        '''Devuelve el HTML actual de la página.'''
+        return self.driver.page_source
         
-        except Exception as e:
-            logging.error(f'Error con Selenium {url}: {e}')
-            return None
-        # finally:
-        #     driver.quit()
-        
-    def scrape(self, url, output_file):
+    def scrape(self, output_file):
         '''Ejecuta el proceso de scarping'''
-        html = self.fetch_html_selenium(url)
+        html = self.fetch_html_selenium()
 
         if html:
             data = parse_data_ml(html)
@@ -49,20 +38,40 @@ class Scrap_Selenium:
 
 if __name__ == '__main__':
     url = 'https://listado.mercadolibre.com.pe/incubadora-huevo-codorniz'
+    url2 = 'https://listado.mercadolibre.com.pe/nintendo-switch#D[A:nintendo%20switch]'
+    output_file = 'mercado_libre.csv'
     scrap_selenium = Scrap_Selenium(url)
-    html = scrap_selenium.fetch_html_selenium(url)
-    data = parse_data_ml(html)
-    print(data)
+    
 
     while True:
         try:
-            next_button = scrap_selenium.driver.find_element(By.XPATH, '//a[@title="Siguiente"]')
-            next_button.click()
-            time.sleep(3)
+            html = scrap_selenium.fetch_html_selenium()
             data = parse_data_ml(html)
+            save_to_csv(data, output_file)
             print(data)
-        except:
-            print('No hay más páginas disponibles.')
+
+            try:
+                # Esperar a que aparezca el banner de cookies
+                cookie_button = WebDriverWait(scrap_selenium.driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, '//button[contains(text(), "Aceptar")]'))
+                )
+                cookie_button.click()
+                print("Banner de cookies cerrado.")
+            except:
+                print("No se encontró el banner de cookies o ya está cerrado.")
+
+            # Esperar que el notón "Siguiente" esté disponible
+            next_button = WebDriverWait(scrap_selenium.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, '//a[@title="Siguiente"]'))
+            )
+            next_button.click()
+
+            # Esperar que la nueva página cargue antes de continuar
+            WebDriverWait(scrap_selenium.driver, 5).until(
+                EC.staleness_of(next_button) # Espera a que el botón se 'refresque'
+            )
+        except Exception as e:
+            print('No hay más páginas disponibles o ocurrió un error:', e)
             break # Sale del bucle cuando no hay más botones
     
     scrap_selenium.driver.quit()
