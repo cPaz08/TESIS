@@ -1,12 +1,18 @@
 # scraper/utils.py
 import csv
 import pandas as pd
+import os
 
 def save_to_csv(data, filename):
     '''Crea un archivo CSV desde 0 y guarda los datos usando pandas.'''
     if not data:
         print('No hay datos para guardar.')
         return
+    
+    # Crear carpeta si no existe
+    folder = os.path.dirname(filename)  # Extrae la carpeta del filename
+    if folder and not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
     
     df = pd.DataFrame(data)  # Convierte la lista de diccionarios en un DataFrame
     df.to_csv(filename, index=False, encoding='utf-8')  # Guarda sin índice

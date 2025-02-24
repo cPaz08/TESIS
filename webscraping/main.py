@@ -6,34 +6,25 @@ from selenium.webdriver.common.by import By
 
 if __name__ == "__main__":
     scrap_selenium = Scrap_Selenium(URL_BASE_MERCADO_LIBRE)
-    i = 1
-    while True:
-        try:
-            scrap_selenium.scrape(f'{OUTPUT_MERCADO_LIBRE_DATA}//mercado_libre_{i}.csv')
-
+    try:
+        while True:
             try:
-                # Esperar a que aparezca el banner de cookies
-                cookie_button = WebDriverWait(scrap_selenium.driver, 5).until(
-                    EC.element_to_be_clickable((By.XPATH, '//button[contains(text(), "Aceptar")]'))
-                )
-                cookie_button.click()
-                print("Banner de cookies cerrado.")
-            except:
-                print("No se encontró el banner de cookies o ya está cerrado.")
-
-            # Esperar que el notón "Siguiente" esté disponible
-            next_button = WebDriverWait(scrap_selenium.driver, 5).until(
-                EC.element_to_be_clickable((By.XPATH, '//a[@title="Siguiente"]'))
-            )
-            next_button.click()
-
-            # Esperar que la nueva página cargue antes de continuar
-            WebDriverWait(scrap_selenium.driver, 5).until(
-                EC.staleness_of(next_button) # Espera a que el botón se 'refresque'
-            )
-            i += 1
+                scrap_selenium.scrape(f'{OUTPUT_MERCADO_LIBRE_DATA}/dato_{scrap_selenium.page}.csv')
+                
+                if not scrap_selenium.next_button():
+                    break  # Si no hay más páginas, termina el bucle
+            except KeyboardInterrupt:
+                print('🚨 Extracción de datos detenida por el usuario')
+                break               
+            except Exception as e:
+                print('❌ ocurrió un error:', e)
+                break # Sale del bucle cuando no hay más botones
+    except KeyboardInterrupt:
+        print('🚨 Extracción interrumpida manualmente.')
+    finally:
+        print("🔄 Cerrando WebDriver...")
+        try:
+            scrap_selenium.driver.quit()  # Asegura el cierre del WebDriver
+            print("✅ WebDriver cerrado correctamente.")
         except Exception as e:
-            print('No hay más páginas disponibles o ocurrió un error:', e)
-            break # Sale del bucle cuando no hay más botones
-    
-    scrap_selenium.driver.quit()
+            print("⚠️ Error al cerrar WebDriver:", e)

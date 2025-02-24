@@ -23,17 +23,78 @@ class Scrap_Selenium:
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         self.driver.get(url)
 
+        # Intentar aceptar las cookies (modifica el XPATH según la web)
+        try:
+            cookie_button = WebDriverWait(self.driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, '//button[contains(text(), "Aceptar")]'))
+            )
+            cookie_button.click()
+            print("✅ Cookies aceptadas correctamente")
+        except Exception as e:
+            print("⚠ No se encontró el botón de cookies o ya estaban aceptadas:", e)
+
+        self.page = 1
+
     def fetch_html_selenium(self):
         '''Devuelve el HTML actual de la página.'''
         return self.driver.page_source
         
     def scrape(self, output_file):
         '''Ejecuta el proceso de scarping'''
+        print(f"🌍 Extrayendo datos de: {self.driver.current_url}")
         html = self.fetch_html_selenium()
 
-        if html:
-            data = parse_data_ml(html)
+        # Diccionario de parsers por palabra clave en el nombre del archivo
+        parsers = {
+            'mercado': parse_data_ml,
+            'switch': parse_data_switch
+        }
+
+        # Buscar el parser adecuado según el nombre del archivo
+        parse_function = None
+        for keyword, func in parsers.items():
+            if keyword in output_file.lower(): # Ignora mayúsculas/minúsculas
+                parse_function = func
+                break # Salir del bucle al encontrar el primer match
+        
+        if parse_function:
+            # print(f"📄 Longitud del HTML: {len(html)} caracteres")
+            # print(f"🔍 Vista previa HTML:\n{html[:1000]}")  # Muestra los primeros 500 caracteres
+            data = parse_function(html)
             save_to_csv(data, output_file)
+        else:
+            print(f'No se encontró un parser para el archivo {output_file}.')
+
+    def next_button(self):
+        '''Hace clic en el botón "Siguiente" si está disponible'''
+        try:
+            current_url = self.driver.current_url  # Guardar la URL actual antes de hacer clic
+            next_button = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, '//a[@title="Siguiente"]'))
+            )
+            next_button.click()
+
+            # Esperar hasta que la URL cambie (si cambia)
+            WebDriverWait(self.driver, 10).until(
+                lambda driver: driver.current_url != current_url
+            )
+
+            # Esperar que la nueva página cargue antes de continuar
+            # WebDriverWait(self.driver, 5).until(
+            #     EC.staleness_of(next_button)
+            # )
+
+            self.page += 1
+            print(f"➡ Avanzando a la página {self.page}")
+            return True
+        except Exception as e:
+            print("🚫 No hay más páginas o ocurrió un error:", e)
+            return False
+    
+    def close(self):
+        '''Cierra el navegador'''
+        self.driver.quit()
+
 
 
 if __name__ == '__main__':
