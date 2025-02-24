@@ -4,7 +4,7 @@ __pycache__/
 *.pyo
 
 # Ignorar carpetas específicas
-carpeta1/
+webscraping/data/processed
 carpeta2/
 
 # Ignorar entornos virtuales de Python
