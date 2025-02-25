@@ -47,7 +47,8 @@ class Scrap_Selenium:
         # Diccionario de parsers por palabra clave en el nombre del archivo
         parsers = {
             'mercado': parse_data_ml,
-            'switch': parse_data_switch
+            'switch': parse_data_switch,
+            'alibaba': parse_data_alibaba
         }
 
         # Buscar el parser adecuado según el nombre del archivo
@@ -65,12 +66,23 @@ class Scrap_Selenium:
         else:
             print(f'No se encontró un parser para el archivo {output_file}.')
 
-    def next_button(self):
+    def next_button(self, output_file):
         '''Hace clic en el botón "Siguiente" si está disponible'''
+        buttons = {
+            'mercado': '//a[@title="Siguiente"]',
+            'switch': '//a[@title="Siguiente"]',
+            'alibaba': '//a[@aria-label="Go to next page"]'
+        }
+        link_button = ''
+        for keyword, link in buttons.items():
+            if keyword in output_file.lower():
+                link_button = link
+                break
+        
         try:
             current_url = self.driver.current_url  # Guardar la URL actual antes de hacer clic
             next_button = WebDriverWait(self.driver, 5).until(
-                EC.element_to_be_clickable((By.XPATH, '//a[@title="Siguiente"]'))
+                EC.element_to_be_clickable((By.XPATH, link_button))
             )
             next_button.click()
 

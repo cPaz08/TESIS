@@ -66,3 +66,42 @@ def parse_data_switch(html):
             })
 
     return data
+
+def parse_data_alibaba(html):
+    '''Parsea el HTML y extrae datos requeridos.'''
+    soup = BeautifulSoup(html, 'html.parser')
+    products = soup.find_all('div', class_='traffic-card-gallery')
+    data = []
+    keywords = ['incubadora', 'nacedora']
+
+    for product in products:
+        # Buscar el título del producto
+        title_tag = product.find('h2', attrs={"style":"display: inline;"})
+        if not title_tag:
+            continue
+        
+        link_tag = product.find('a')
+        if not link_tag:
+            continue
+        
+        title = title_tag.get_text(strip=True).lower()
+
+        # Filtrar productos que contengan 'nintendo' y 'switch' en el título
+        if any(word in title for word in keywords):
+            # Solo los que contienen 'lite'
+            if not re.search(r'codorniz', title, re.IGNORECASE):
+                continue
+
+            # Buscar el precio
+            # monetary_unit_tag = product.find('span', class_='andes-money-amount__currency-symbol')
+            # monetary_unit = monetary_unit_tag.get_text(strip=True)if monetary_unit_tag else 'None/'
+            price_tag = product.find('div', attrs={"data-component":"ProductPrice"})
+            price = price_tag.get_text(strip=True) if price_tag else "No disponible"
+
+            data.append({
+                'Nombre': title_tag.get_text(strip=True),
+                'Precio': f'{price}',
+                'Url': link_tag['href']
+            })
+
+    return data

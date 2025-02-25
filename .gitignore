@@ -5,7 +5,7 @@ __pycache__/
 
 # Ignorar carpetas específicas
 webscraping/data/processed
-carpeta2/
+data/processed
 
 # Ignorar entornos virtuales de Python
 venv/

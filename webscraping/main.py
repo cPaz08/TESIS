@@ -5,13 +5,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
 if __name__ == "__main__":
-    scrap_selenium = Scrap_Selenium(URL_BASE_MERCADO_LIBRE)
+    scrap_selenium = Scrap_Selenium(URL_BASE_ALIBABA)
     try:
         while True:
             try:
-                scrap_selenium.scrape(f'{OUTPUT_MERCADO_LIBRE_DATA}/dato_{scrap_selenium.page}.csv')
+                scrap_selenium.scrape(f'{OUTPUT_ALIBABA}/dato_{scrap_selenium.page}.csv')
                 
-                if not scrap_selenium.next_button():
+                if not scrap_selenium.next_button(OUTPUT_ALIBABA):
                     break  # Si no hay más páginas, termina el bucle
             except KeyboardInterrupt:
                 print('🚨 Extracción de datos detenida por el usuario')
