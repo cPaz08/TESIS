@@ -19,17 +19,22 @@ def save_to_csv(data, filename):
 
     print(f'Datos guardados en {filename}')
 
+def process_csv_files(DATA_PATH):
+    for file in os.listdir(DATA_PATH):
+        if file.endswith(".csv"):
+            file_path = os.path.join(DATA_PATH, file)
+            print(f"📂 Procesando {file_path}...")
 
-def save_txt(data, filename):
-    '''Guarda los datos en un archcivo txt.'''
-    if not data:
-        print('No hay datos para guardar.')
-        return
-    
-    keys = data[0].keys()
-    with open(filename, 'w', newline='', encoding='utf-8') as output_file:
-        dict_writer = csv.DictWriter(output_file, fieldnames=keys)
-        dict_writer.writeheader()
-        dict_writer.writerows(data)
+            df = pd.read_csv(file_path)
 
-        print(f'Datos guardados en {filename}')
+            if "url" in df.columns:
+                df["description"] = df["url"].apply(get_product_description)
+
+                new_file_path = file_path.replace(".csv", "_descriptions.csv")
+                df.to_csv(new_file_path, index=False, encoding="utf-8-sig")
+                print(f"✅ Archivo guardado: {new_file_path}")
+            else:
+                print(f"⚠️ El archivo {file} no tiene una columna 'url'.")
+
+if __name__ == "__main__":
+    process_csv_files()

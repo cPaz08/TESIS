@@ -6,3 +6,4 @@ OUTPUT_NINTENDO_SWITCH = 'data/processed/nintendo_switch'
 
 URL_BASE_ALIBABA = 'https://spanish.alibaba.com/g/industrial-quail-incubator.html?utm_source=chatgpt.com'
 OUTPUT_ALIBABA = 'data/processed/alibaba'
+DATA_PATH_ALIBABA = 'data/processed/alibaba'
