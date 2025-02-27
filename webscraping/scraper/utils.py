@@ -2,6 +2,7 @@
 import csv
 import pandas as pd
 import os
+from pathlib import Path
 
 def save_to_csv(data, filename):
     '''Crea un archivo CSV desde 0 y guarda los datos usando pandas.'''
@@ -19,22 +20,12 @@ def save_to_csv(data, filename):
 
     print(f'Datos guardados en {filename}')
 
-def process_csv_files(DATA_PATH):
-    for file in os.listdir(DATA_PATH):
-        if file.endswith(".csv"):
-            file_path = os.path.join(DATA_PATH, file)
-            print(f"📂 Procesando {file_path}...")
+def save_description_to_csv(df, DATA_PATH, file_name):
+    folder_path = Path(DATA_PATH) / "description"
+    folder_path.mkdir(parents=True, exist_ok=True)  # Crea la carpeta si no existe
 
-            df = pd.read_csv(file_path)
+    new_file_path = folder_path / file_name.replace(".csv", "_descriptions.csv")
 
-            if "url" in df.columns:
-                df["description"] = df["url"].apply(get_product_description)
+    df.to_csv(new_file_path, index=False, encoding="utf-8-sig")
+    print(f"✅ Archivo guardado: {new_file_path.resolve()}")  # Ruta absoluta
 
-                new_file_path = file_path.replace(".csv", "_descriptions.csv")
-                df.to_csv(new_file_path, index=False, encoding="utf-8-sig")
-                print(f"✅ Archivo guardado: {new_file_path}")
-            else:
-                print(f"⚠️ El archivo {file} no tiene una columna 'url'.")
-
-if __name__ == "__main__":
-    process_csv_files()
