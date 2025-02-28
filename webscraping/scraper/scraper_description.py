@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from scraper.utils import save_description_to_csv
+from scraper.utils import *
 import os
 import pandas as pd
 from selenium import webdriver
@@ -81,10 +81,17 @@ class Scraper_description:
                     continue
                 
                 print("🔍 Extrayendo descripciones...")
-                df["description"] = df["Url"].apply(self.get_alibaba_description)
+                # df["description"] = df["Url"].apply(self.get_alibaba_description)
 
-                print("💾 Guardando archivo actualizado...")
-                save_description_to_csv(df, self.data_path, file)
+                # print("💾 Guardando archivo actualizado...")
+                # save_description_to_csv(df, self.data_path, file)
+                for index, row in df.iterrows():
+                    url = row["Url"]
+                    description = self.get_alibaba_description(url)
+
+                    # Guardar en un archivo .txt
+                    txt_file_name = f"producto_{index}.txt"  # Puedes cambiarlo para que sea más descriptivo
+                    save_description_to_txt(description, self.data_path, txt_file_name)
     
     def get_alibaba_description(self, url):
         # Configurar Selenium con Chrome
