@@ -15,10 +15,10 @@ class Scrap_Selenium:
 
     def __init__(self, url):
         options = Options()
-        # options.add_argument("--headless")  
-        # options.add_argument("--disable-gpu")
-        # options.add_argument("--no-sandbox")
-        # options.add_argument("--window-size=1920,1080")
+        options.add_argument("--headless")  
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--window-size=1920,1080")
 
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         self.driver.get(url)
@@ -64,7 +64,7 @@ class Scrap_Selenium:
             data = parse_function(html)
             save_to_csv(data, output_file)
         else:
-            print(f'No se encontró un parser para el archivo {output_file}.')
+            print(f'🚫 No se encontró un parser para el archivo {output_file}.')
 
     def next_button(self, output_file):
         '''Hace clic en el botón "Siguiente" si está disponible'''
