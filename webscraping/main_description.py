@@ -5,5 +5,10 @@ from config import *
 
 if __name__ == '__main__':
     scraper_description = Scraper_description(DATA_PATH_ALIBABA)
-    scraper_description.process_csv_files()
+    try:
+        scraper_description.process_csv_url()
+    except KeyboardInterrupt:
+        print("🚨 Extracción interrumpida manualmente.")
+    finally:
+        scraper_description.close_driver()
     

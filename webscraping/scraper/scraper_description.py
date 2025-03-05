@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from utils import *
+from scraper.utils import *
 import os
 import pandas as pd
 from selenium import webdriver
@@ -13,7 +13,25 @@ import time
 
 class Scraper_description:
     def __init__(self, data_path):
-        self.data_path = data_path        
+        print("🚀 Inicializando el scraper...")
+        self.data_path = data_path
+        self.driver = self._initialize_webdriver()
+        self.index = 0
+    
+    def _initialize_webdriver(self):
+        print("🖥️ Configurando WebDriver...")
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
+    def close_driver(self):
+        if self.driver:
+            print("🔄 Cerrando WebDriver...")
+            self.driver.quit()      
+            print("✅ WebDriver cerrado correctamente.")
 
     def get_product_description(self, url):
         """
@@ -63,7 +81,7 @@ class Scraper_description:
             print(f"❌ Error al obtener la página {url}: {e}")
             return f"Error: {e}"
     
-    def process_csv_files(self):
+    def process_csv_url(self):
         if not os.path.exists(self.data_path):
             print(f"❌ La ruta {self.data_path} no existe.")
             return
@@ -71,80 +89,59 @@ class Scraper_description:
             if file.endswith(".csv"):
                 file_path = os.path.join(self.data_path, file)
                 print(f"📂 Procesando {file_path}...")
-
                 try:
                     df = pd.read_csv(file_path)
+                    if "Url" not in df.columns:
+                        print(f"⚠️ El archivo {file} no contiene una columna 'Url'.")
+                        continue
+                    for index, row in df.iterrows():
+                        url = row["Url"]
+                        title = str(row['Nombre']) if pd.notna(row['Nombre']) else "sin_nombre"
+                        description, img_urls = self.get_alibaba_description_and_img_urls(url)
+                        try:
+                            # Guardar en un archivo .txt
+                            txt_file_name = f"{self.index}_{sanitize_filename(title)}.txt"  # Puedes cambiarlo para que sea más descriptivo
+                            out_put_dir = save_description_to_txt(description, self.data_path, txt_file_name)
+                            download_img(img_urls, out_put_dir)
+                            self.index += 1
+                        except Exception as e:
+                            print(f"❌ Error {file}, fila{index}: {e}")
+                            continue  
                 except Exception as e:
                     print(f"❌ Error al leer {file}: {e}")
-                    continue
-                if "Url" not in df.columns:
-                    print(f"⚠️ El archivo {file} no tiene una columna 'Url'.")
-                    continue
-                
-                print("🔍 Extrayendo descripciones...")
-                # df["description"] = df["Url"].apply(self.get_alibaba_description)
-
-                # print("💾 Guardando archivo actualizado...")
-                # save_description_to_csv(df, self.data_path, file)
-                for index, row in df.iterrows():
-                    url = row["Url"]
-                    description = self.get_alibaba_description_and_images(url)
-
-                    # Guardar en un archivo .txt
-                    txt_file_name = f"producto_{index}.txt"  # Puedes cambiarlo para que sea más descriptivo
-                    save_description_to_txt(description, self.data_path=='img', txt_file_name)
-    
-    def get_alibaba_description_and_images(self, url):
-        # Configurar Selenium con Chrome
-        options = Options()
-        options.add_argument("--headless")  # Para ejecutar en segundo plano
-        options.add_argument("--disable-software-rasterizer")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-
-        # Inicializar el navegador
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.get(url)
-        time.sleep(5)  # Esperar a que cargue la página
-        images_urls = []
+                    continue                     
+              
+    def get_alibaba_description_and_img_urls(self, url):
+        print(f"🌐 Accediendo a la URL: {url}")
+        self.driver.get(url)
+        time.sleep(5)
+        print("⏳ Esperando que la página cargue...")
         
-        try:            
-             # 1️⃣ Encontrar miniaturas de imágenes
-            thumbnails = driver.find_elements(By.CSS_SELECTOR, "div.ProductImageThumbsList")
-            # 2️⃣ Hacer clic en cada miniatura para cambiar la imagen principal
-            for index, thumb in enumerate(thumbnails):
-                try:
-                    ActionChains(driver).move_to_element(thumb).click().perform()
-                    time.sleep(2)  # Esperar cambio de imagen
-
-                    # 3️⃣ Extraer la URL de la imagen principal
-                    main_image = driver.find_element(By.CSS_SELECTOR, "img.id-h-full.id-w-full")
-                    img_url = main_image.get_attribute("src")
-                    
-                    if img_url and img_url not in images_urls:
-                        images_urls.append(img_url)
-                        save_image(img_url, self.data_path, f"img_{index}")
-
-                except Exception as e:
-                    print(f"⚠️ No se pudo hacer clic en la miniatura {index}: {e}")
-
-            
-            # Intentar encontrar la descripción en el div con id="J-rich-text-description"
-            try:
-                description_element = driver.find_element(By.ID, "J-rich-text-description")
-                description_text = description_element.text.strip()
-            except:
-                description_text = "Descripción no encontrada"
-            
-            return description_text
-            
-        finally:
-            driver.quit()
-
+        try:
+            description_element = self.driver.find_element(By.ID, "J-rich-text-description")
+            # Encontrar imágenes en la página
+            imagenes = self.driver.find_elements(By.TAG_NAME, "img")
+            # Extraer y mostrar las URLs de las imágenes
+            image_urls = [img.get_attribute("src") for img in imagenes if img.get_attribute("src")]
+            if description_element:
+                print("✅ Descripción e imégenes encontradas")
+                return description_element.text.strip(), image_urls
+            else:
+                print("⚠️ No se encontró la descripción o imágenes")
+                return "Descripción no encontrada", image_urls
+        except KeyboardInterrupt:
+                print('🚨 Extracción de datos detenida por el usuario')
+        except Exception as e:
+            print(f"❌ Error al extraer la descripción: {e}")
+            return "Descripción no encontrada", image_urls
+           
 if __name__ == '__main__':
-    # URL de prueba
-    url = "https://spanish.alibaba.com/product-detail/2112-Commercial-Industrial-Poultry-Quail-Reptile-1600227849205.html"
-    descripcion = Scraper_description('data')
-    descripcion_texto = descripcion.get_alibaba_description_and_images(url)
-    print(f"Descripción:\n{descripcion_texto}")
-    
+    print("🚀 Iniciando proceso de scraping...")
+    scraper = Scraper_description('data')
+    try:
+        url = "https://spanish.alibaba.com/product-detail/Best-Design-560-Egg-Incubator-For-62306155350.html"
+        print(scraper.get_alibaba_description_and_img_urls(url))
+    except KeyboardInterrupt:
+        print("🚨 Extracción interrumpida manualmente.")
+    finally:
+        scraper.close_driver()

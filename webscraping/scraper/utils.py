@@ -4,6 +4,23 @@ import pandas as pd
 import os
 from pathlib import Path
 import requests
+import re
+
+def sanitize_filename(filename, max_length=100):
+    """
+    Sanitiza el nombre del archivo para evitar caracteres inválidos y limitar su longitud.
+    """
+    if not isinstance(filename, str):  # Asegurar que es string
+        filename = "sin_nombre"
+
+    # Reemplazar caracteres no permitidos
+    filename = re.sub(r'[\\/*?:"<>|]', "", filename)  
+    # Reemplazar espacios en blanco con guiones bajos
+    filename = re.sub(r'\s+', "_", filename)
+
+    # Eliminar espacios al inicio y final
+    filename = filename.strip()
+    return filename[:max_length]  # Limitar la longitud máxima
 
 def save_to_csv(data, filename):
     '''Crea un archivo CSV desde 0 y guarda los datos usando pandas.'''
@@ -35,27 +52,47 @@ def save_description_to_txt(description, data_path, file_name):
     """
     Guarda la descripción en un archivo .txt en la carpeta 'descriptions'.
     """
-    folder_path = os.path.join(data_path, "descriptions")  # Carpeta donde guardamos los TXT
-    os.makedirs(folder_path, exist_ok=True)  # Crear la carpeta si no existe
 
-    txt_file_path = os.path.join(folder_path, file_name.replace(".csv", ".txt"))  # Nombre del archivo TXT
+    # Validar los parámetros de entrada
+    if not data_path or not isinstance(data_path, str):
+        raise ValueError("❌ El parámetro 'data_path' es inválido o vacío.")
+    if not file_name or not isinstance(file_name, str):
+        raise ValueError("❌ El parámetro 'file_name' es inválido o vacío.")
 
-    with open(txt_file_path, "w", encoding="utf-8") as file:
-        file.write(description)
+    # Construir la ruta de la carpeta
+    descriptions_dir = os.path.join(data_path.replace('/processed/alibaba', ''), "descriptions")
+    txt_file_dir = os.path.join(descriptions_dir, file_name.replace('.txt', ''))
+    os.makedirs(txt_file_dir, exist_ok=True)  # Crear 'descriptions' de cada txt si no existe
 
-    print(f"✅ Descripción guardada en: {txt_file_path}")
+    txt_file_path = os.path.join(txt_file_dir, file_name)
 
-def save_image(img_url, folder_path, image_name):
-    """ Descarga y guarda una imagen desde una URL """
-    if not img_url:
-        return None
+    try:
+        # Guardar la descripción en un archivo .txt
+        with open(txt_file_path, "w", encoding="utf-8") as file:
+            file.write(description)
+        print(f"✅ Descripción guardada en: {txt_file_path}")
+        return txt_file_dir
+    except Exception as e:
+        print(f"❌ Error al guardar la descripción: {e}")
 
-    response = requests.get(img_url, stream=True)
-    if response.status_code == 200:
-        file_path = os.path.join(folder_path, f"{image_name}.jpg")
-        with open(file_path, "wb") as file:
-            for chunk in response.iter_content(1024):
-                file.write(chunk)
-        print(f"✅ Imagen guardada: {file_path}")
-        return file_path
-    return None
+def download_img(image_urls, output_folder):
+    # Filtro
+    filtro = ['720x720']
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for i, img_url in enumerate(image_urls):
+        if not any(word in img_url for word in filtro):
+            continue
+        try:
+            response = requests.get(img_url, stream=True)
+            if response.status_code == 200:
+                image_path = os.path.join(output_folder, f"imagen_{i+1}.jpg")
+                with open(image_path, "wb") as file:
+                    for chunk in response.iter_content(1024):
+                        file.write(chunk)
+                print(f"✅ Imagen {i+1} descargada: {image_path}")
+            else:
+                print(f"❌ No se pudo descargar la imagen {i+1}")
+        except Exception as e:
+            print(f"❌ Error al descargar la imagen {i+1}: {e}")
