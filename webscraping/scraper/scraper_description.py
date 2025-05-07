@@ -116,6 +116,7 @@ class Scraper_description:
         self.driver.get(url)
         time.sleep(5)
         print("⏳ Esperando que la página cargue...")
+        image_urls = []
         
         try:
             description_element = self.driver.find_element(By.ID, "J-rich-text-description")

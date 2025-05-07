@@ -5,7 +5,11 @@ __pycache__/
 
 # Ignorar carpetas específicas
 webscraping/data/processed
+webscraping/data/descriptions
 data/processed
+antecedentes tesis
+formatos
+TESIS - PAZ.docx
 
 # Ignorar entornos virtuales de Python
 venv/
