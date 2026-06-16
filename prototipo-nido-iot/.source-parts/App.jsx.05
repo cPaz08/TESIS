@@ -1,0 +1,2 @@
+  return <Dashboard user={user || demoUser} device={device || demoDevice} readings={readings} onLogout={logout} />
+}
