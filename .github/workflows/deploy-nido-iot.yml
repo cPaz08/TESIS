@@ -1,0 +1,54 @@
+name: Publicar Nido IoT
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'prototipo-nido-iot/**'
+      - '.github/workflows/deploy-nido-iot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: prototipo-nido-iot/package.json
+
+      - name: Reconstruir archivos fuente
+        working-directory: prototipo-nido-iot
+        run: |
+          cat .source-parts/App.jsx.* > src/App.jsx
+          cat .source-parts/styles.css.* > src/styles.css
+
+      - name: Instalar y compilar
+        working-directory: prototipo-nido-iot
+        run: |
+          npm install
+          npm run build
+
+      - name: Preparar GitHub Pages
+        run: |
+          rm -rf docs
+          mkdir -p docs
+          cp -R prototipo-nido-iot/dist/. docs/
+          touch docs/.nojekyll
+          rm -rf prototipo-nido-iot/.source-parts
+
+      - name: Guardar versión compilada
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs prototipo-nido-iot/src/App.jsx prototipo-nido-iot/src/styles.css prototipo-nido-iot/.source-parts
+          git diff --cached --quiet || git commit -m 'Publica la versión completa de Nido IoT'
+          git push
