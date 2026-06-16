@@ -1,0 +1,24 @@
+{
+  "name": "incubadora-iot-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "collector": "node services/mqtt-collector.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "lucide-react": "^1.20.0",
+    "mqtt": "^5.15.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "vite": "^8.0.16"
+  }
+}
