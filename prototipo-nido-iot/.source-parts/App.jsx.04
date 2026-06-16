@@ -1,0 +1,145 @@
+                </div>
+              </div>
+              <div className="chart-area">
+                <div className="chart-y-labels"><span>{metric === 'temperature' ? '38.5°' : '70%'}</span><span>{metric === 'temperature' ? '37.8°' : '63%'}</span><span>{metric === 'temperature' ? '37.1°' : '56%'}</span><span>{metric === 'temperature' ? '36.4°' : '49%'}</span></div>
+                <LineChart readings={readings} metric={metric} />
+              </div>
+              <div className="chart-x-labels"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>Ahora</span></div>
+              <div className="chart-legend"><span><i className={metric} /> {metric === 'temperature' ? 'Temperatura registrada' : 'Humedad registrada'}</span><span><i className="ideal" /> Rango recomendado</span></div>
+            </article>
+
+            <aside className="right-column">
+              <article className="status-card dashboard-card">
+                <div className="card-heading"><div><span>Salud del dispositivo</span><small>Diagnóstico en tiempo real</small></div><RefreshCw size={18} /></div>
+                <div className="health-score"><div className="score-ring"><strong>98</strong><small>/100</small></div><span><strong>Excelente</strong><small>Todos los sistemas responden</small></span></div>
+                <div className="health-list">
+                  <div><span><Wifi size={17} /> Conexión MQTT</span><strong className="good">Estable</strong></div>
+                  <div><span><Radio size={17} /> Sensor DHT22</span><strong className="good">Activo</strong></div>
+                  <div><span><Activity size={17} /> Frecuencia de datos</span><strong>Cada 5 s</strong></div>
+                </div>
+              </article>
+              <BackupCard onOpen={() => setBackupOpen(true)} />
+            </aside>
+          </section>
+
+          <section className="records-card dashboard-card">
+            <div className="card-heading"><div><span>Registros recientes</span><small>Últimas lecturas recibidas del dispositivo</small></div><button className="export-button" type="button"><Download size={16} /> Exportar CSV</button></div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Fecha y hora</th><th>Temperatura</th><th>Humedad</th><th>Estado</th></tr></thead>
+                <tbody>
+                  {recentRows.map((reading) => <tr key={reading.id}><td>{formatDate(reading.recorded_at)}</td><td><Thermometer size={15} /> {Number(reading.temperature).toFixed(2)} °C</td><td><Droplets size={15} /> {Number(reading.humidity).toFixed(1)} %</td><td><span className="table-status"><i /> Óptimo</span></td></tr>)}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+      {backupOpen && <BackupModal onClose={() => setBackupOpen(false)} />}
+    </div>
+  )
+}
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value))
+}
+
+function LoadingScreen() {
+  return <div className="loading-screen"><Brand /><LoaderCircle className="spin" size={26} /><span>Preparando tu experiencia</span></div>
+}
+
+export default function App() {
+  const [step, setStep] = useState(FLOW.LANDING)
+  const [device, setDevice] = useState(null)
+  const [user, setUser] = useState(null)
+  const [readings, setReadings] = useState(initialReadings)
+  const [booting, setBooting] = useState(isSupabaseConfigured)
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined
+
+    let mounted = true
+    let subscription
+
+    async function bootstrap() {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const sessionUser = sessionData.session?.user || null
+      if (!mounted) return
+      setUser(sessionUser)
+
+      if (sessionUser) {
+        const pendingCode = localStorage.getItem('pending_device_code')
+        if (pendingCode) {
+          const { data } = await supabase.rpc('preview_device', { p_public_code: pendingCode })
+          const found = Array.isArray(data) ? data[0] : data
+          setDevice({ ...(found || {}), public_code: pendingCode })
+          setStep(FLOW.PAIR)
+        } else {
+          const { data: devices } = await supabase.from('devices').select('*').order('created_at').limit(1)
+          if (devices?.[0]) {
+            setDevice(devices[0])
+            const { data: storedReadings } = await supabase.from('device_readings').select('*').eq('device_id', devices[0].id).order('recorded_at', { ascending: false }).limit(80)
+            if (storedReadings?.length) setReadings(storedReadings.reverse())
+            setStep(FLOW.DASHBOARD)
+          }
+        }
+      }
+      setBooting(false)
+    }
+
+    bootstrap()
+    const authListener = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
+      setUser(session?.user || null)
+      if (session?.user && localStorage.getItem('pending_device_code')) setStep(FLOW.PAIR)
+    })
+    subscription = authListener.data.subscription
+
+    return () => {
+      mounted = false
+      subscription?.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (step !== FLOW.DASHBOARD || !device) return undefined
+
+    if (!isSupabaseConfigured) {
+      const timer = window.setInterval(() => {
+        setReadings((current) => [...current.slice(-44), createNextReading(current.at(-1))])
+      }, 4000)
+      return () => window.clearInterval(timer)
+    }
+
+    const channel = supabase
+      .channel(`readings:${device.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'device_readings', filter: `device_id=eq.${device.id}` }, (payload) => {
+        setReadings((current) => [...current.slice(-79), payload.new])
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [step, device])
+
+  async function logout() {
+    if (isSupabaseConfigured) await supabase.auth.signOut()
+    localStorage.removeItem('pending_device_code')
+    setUser(null)
+    setDevice(null)
+    setReadings(initialReadings)
+    setStep(FLOW.LANDING)
+  }
+
+  function openDemo() {
+    setUser(demoUser)
+    setDevice(demoDevice)
+    setReadings(initialReadings)
+    setStep(FLOW.DASHBOARD)
+  }
+
+  if (booting) return <LoadingScreen />
+
+  if (step === FLOW.LANDING) return <Landing onConnect={() => setStep(FLOW.CONNECT)} onDemo={openDemo} />
+  if (step === FLOW.CONNECT) return <ConnectStep onBack={() => setStep(FLOW.LANDING)} onValidated={(found) => { setDevice(found); setStep(FLOW.LOGIN) }} />
+  if (step === FLOW.LOGIN) return <LoginStep device={device} onBack={() => setStep(FLOW.CONNECT)} onLoggedIn={(loggedUser) => { setUser(loggedUser); setStep(FLOW.PAIR) }} />
+  if (step === FLOW.PAIR) return <PairStep device={device} user={user} onBack={() => setStep(FLOW.LOGIN)} onPaired={(paired) => { setDevice(paired); setReadings(initialReadings); setStep(FLOW.DASHBOARD) }} />
