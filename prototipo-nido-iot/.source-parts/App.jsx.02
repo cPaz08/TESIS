@@ -1,0 +1,137 @@
+    <FlowShell onBack={onBack} step={FLOW.LOGIN}>
+      <div className="flow-icon success"><Check size={28} /></div>
+      <div className="flow-title"><span>Paso 2 de 3</span><h1>Protege tu dispositivo</h1><p>Inicia sesión para vincularlo a tu cuenta y consultar sus datos desde cualquier lugar.</p></div>
+      <DeviceFound device={device} />
+      <div className="login-separator"><i /><span>Continuar de forma segura</span><i /></div>
+      <button className="google-button" type="button" onClick={signIn} disabled={loading}>
+        {loading ? <LoaderCircle className="spin" size={19} /> : <GoogleIcon />}
+        Continuar con Google
+      </button>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      {!isSupabaseConfigured && <div className="demo-notice"><Sparkles size={16} /><span>Modo demostración activo. El botón simulará un acceso con Google.</span></div>}
+      <p className="privacy-copy">Usaremos tu identidad únicamente para proteger el acceso a tus dispositivos. El permiso de Google Drive se solicitará por separado.</p>
+    </FlowShell>
+  )
+}
+
+function PairStep({ device, user, onPaired, onBack }) {
+  const [pairingCode, setPairingCode] = useState('')
+  const [name, setName] = useState(device?.name || 'Incubadora principal')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function pair(event) {
+    event.preventDefault()
+    setError('')
+    if (pairingCode.length < 6) {
+      setError('Ingresa el código de vinculación de seis dígitos.')
+      return
+    }
+    setLoading(true)
+    try {
+      if (!isSupabaseConfigured) {
+        await new Promise((resolve) => setTimeout(resolve, 700))
+        if (pairingCode !== demoDevice.pairingCode) {
+          setError('Código incorrecto. En la demostración usa 738914.')
+          return
+        }
+        localStorage.removeItem('pending_device_code')
+        onPaired({ ...device, name })
+        return
+      }
+
+      const { data, error: rpcError } = await supabase.rpc('claim_device', {
+        p_public_code: device.public_code,
+        p_pairing_code: pairingCode,
+        p_device_name: name,
+      })
+      if (rpcError) throw rpcError
+      const paired = Array.isArray(data) ? data[0] : data
+      localStorage.removeItem('pending_device_code')
+      onPaired(paired || { ...device, name })
+    } catch (pairError) {
+      setError(pairError.message || 'No pudimos vincular el dispositivo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <FlowShell onBack={onBack} step={FLOW.PAIR} user={user}>
+      <div className="flow-icon"><Link2 size={28} /></div>
+      <div className="flow-title"><span>Paso 3 de 3</span><h1>Último paso</h1><p>Confirma el código secreto para asociar esta incubadora a tu cuenta.</p></div>
+      <div className="account-chip"><div className="user-avatar">{initials(user)}</div><span><small>Conectando como</small><strong>{user?.user_metadata?.full_name || user?.email}</strong></span><Check size={16} /></div>
+      <form className="flow-form compact" onSubmit={pair}>
+        <label htmlFor="device-name">Nombre del dispositivo</label>
+        <input id="device-name" className="text-input" value={name} onChange={(event) => setName(event.target.value)} />
+        <label htmlFor="pair-code">Código de vinculación</label>
+        <input id="pair-code" className="pin-input" inputMode="numeric" maxLength="6" value={pairingCode} onChange={(event) => setPairingCode(event.target.value.replace(/\D/g, ''))} placeholder="••••••" />
+        <div className="input-hint"><span>Es diferente al ID público.</span>{!isSupabaseConfigured && <button type="button" onClick={() => setPairingCode('738914')}>Usar 738914</button>}</div>
+        {error && <div className="form-error" role="alert">{error}</div>}
+        <button className="button button-primary button-wide" type="submit" disabled={loading}>
+          {loading ? <><LoaderCircle className="spin" size={18} /> Vinculando</> : <><Link2 size={18} /> Vincular dispositivo</>}
+        </button>
+      </form>
+    </FlowShell>
+  )
+}
+
+function initials(user) {
+  const name = user?.user_metadata?.full_name || user?.email || 'Usuario'
+  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+}
+
+function LineChart({ readings, metric = 'temperature' }) {
+  const width = 820
+  const height = 260
+  const padX = 14
+  const padY = 22
+  const values = readings.map((item) => Number(item[metric]))
+  const fallback = metric === 'temperature' ? [36.8, 38.2] : [50, 65]
+  const actualMin = Math.min(...values, fallback[0])
+  const actualMax = Math.max(...values, fallback[1])
+  const span = Math.max(0.1, actualMax - actualMin)
+  const min = actualMin - span * 0.12
+  const max = actualMax + span * 0.12
+  const xFor = (index) => padX + (index / Math.max(1, values.length - 1)) * (width - padX * 2)
+  const yFor = (value) => padY + ((max - value) / (max - min)) * (height - padY * 2)
+  const points = values.map((value, index) => `${xFor(index)},${yFor(value)}`).join(' ')
+  const areaPoints = `${padX},${height - padY} ${points} ${width - padX},${height - padY}`
+  const lastX = xFor(values.length - 1)
+  const lastY = yFor(values.at(-1) || 0)
+  const gradientId = metric === 'temperature' ? 'temperatureArea' : 'humidityArea'
+
+  return (
+    <svg className={`main-chart ${metric}`} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Historial de ${metric === 'temperature' ? 'temperatura' : 'humedad'}`}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity=".18" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0.15, 0.38, 0.61, 0.84].map((ratio) => <line key={ratio} x1="0" x2={width} y1={height * ratio} y2={height * ratio} className="chart-grid" />)}
+      <polygon points={areaPoints} fill={`url(#${gradientId})`} />
+      <polyline points={points} className="chart-polyline" />
+      <line x1={lastX} x2={lastX} y1={lastY} y2={height - padY} className="chart-cursor" />
+      <circle cx={lastX} cy={lastY} r="5" className="chart-point" />
+    </svg>
+  )
+}
+
+function MetricCard({ type, value, delta }) {
+  const temperature = type === 'temperature'
+  return (
+    <article className={`metric-card ${temperature ? 'temperature' : 'humidity'}`}>
+      <div className="metric-top">
+        <div className="metric-icon">{temperature ? <Thermometer size={21} /> : <Droplets size={21} />}</div>
+        <button type="button" aria-label="Más opciones"><MoreHorizontal size={20} /></button>
+      </div>
+      <span>{temperature ? 'Temperatura' : 'Humedad relativa'}</span>
+      <strong>{value}<sup>{temperature ? '°C' : '%'}</sup></strong>
+      <div className="metric-footer"><span><i /> Dentro del rango</span><small>{delta}</small></div>
+    </article>
+  )
+}
+
+function Sidebar({ active, setActive, onLogout }) {
+  const items = [
