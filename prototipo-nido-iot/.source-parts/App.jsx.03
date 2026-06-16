@@ -1,0 +1,107 @@
+    ['overview', LayoutDashboard, 'Resumen'],
+    ['history', History, 'Historial'],
+    ['alerts', Bell, 'Alertas'],
+    ['devices', Radio, 'Dispositivos'],
+  ]
+  return (
+    <aside className="dashboard-sidebar">
+      <Brand compact />
+      <nav>
+        {items.map(([id, Icon, label]) => <button key={id} className={active === id ? 'active' : ''} type="button" onClick={() => setActive(id)}><Icon size={19} /><span>{label}</span></button>)}
+      </nav>
+      <div className="sidebar-bottom">
+        <button type="button"><Settings size={19} /><span>Ajustes</span></button>
+        <button type="button" onClick={onLogout}><LogOut size={19} /><span>Cerrar sesión</span></button>
+      </div>
+    </aside>
+  )
+}
+
+function BackupCard({ onOpen }) {
+  return (
+    <article className="backup-card">
+      <div className="backup-art"><HardDrive size={31} /><span><Cloud size={16} /></span></div>
+      <div><strong>Respalda tu historial</strong><p>Conecta Google Drive para guardar copias periódicas de tus registros.</p></div>
+      <button type="button" onClick={onOpen}>Configurar <ArrowRight size={15} /></button>
+    </article>
+  )
+}
+
+function BackupModal({ onClose }) {
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="backup-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="modal-close" type="button" onClick={onClose}><X size={20} /></button>
+        <div className="modal-icon"><HardDrive size={28} /></div>
+        <span className="modal-kicker">Integración opcional</span>
+        <h2 id="backup-title">Respaldo en Google Drive</h2>
+        <p>Esta función guardará archivos CSV periódicos sin usar Drive como base principal del dashboard.</p>
+        <div className="permission-list">
+          <span><Check size={16} /> Crear únicamente los archivos del sistema</span>
+          <span><Check size={16} /> No leer otros documentos de tu Drive</span>
+          <span><Check size={16} /> Desconectar el permiso cuando desees</span>
+        </div>
+        <button className="button button-dark button-wide" type="button" onClick={onClose}><GoogleIcon /> Conectar en una próxima versión</button>
+        <button className="modal-later" type="button" onClick={onClose}>Ahora no</button>
+      </div>
+    </div>
+  )
+}
+
+function Dashboard({ user, device, readings, onLogout }) {
+  const [active, setActive] = useState('overview')
+  const [metric, setMetric] = useState('temperature')
+  const [range, setRange] = useState('24 h')
+  const [backupOpen, setBackupOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const current = readings.at(-1) || { temperature: 37.6, humidity: 58 }
+  const recentRows = [...readings].reverse().slice(0, 6)
+
+  const stats = useMemo(() => {
+    const temperatures = readings.map((reading) => Number(reading.temperature))
+    const humidities = readings.map((reading) => Number(reading.humidity))
+    const avg = (values) => values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length)
+    return {
+      avgTemperature: avg(temperatures).toFixed(2),
+      avgHumidity: avg(humidities).toFixed(1),
+      minTemperature: Math.min(...temperatures).toFixed(2),
+      maxTemperature: Math.max(...temperatures).toFixed(2),
+    }
+  }, [readings])
+
+  return (
+    <div className="dashboard-page">
+      <Sidebar active={active} setActive={setActive} onLogout={onLogout} />
+      <header className="dashboard-mobile-header"><Brand compact /><button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}><Menu size={22} /></button></header>
+      {mobileMenuOpen && <div className="mobile-nav-popover"><button onClick={() => setMobileMenuOpen(false)}><LayoutDashboard size={17} /> Resumen</button><button onClick={onLogout}><LogOut size={17} /> Cerrar sesión</button></div>}
+      <main className="dashboard-main">
+        <header className="dashboard-topbar">
+          <div className="device-selector"><span className="device-selector-icon"><Egg size={19} /></span><div><small>Dispositivo activo</small><strong>{device?.name || 'Incubadora principal'}</strong></div><ChevronDown size={17} /></div>
+          <div className="topbar-actions"><button type="button" className="notification-button"><Bell size={19} /><i /></button><div className="topbar-user"><div>{initials(user)}</div><span><strong>{user?.user_metadata?.full_name || 'Usuario'}</strong><small>{user?.email}</small></span><ChevronDown size={16} /></div></div>
+        </header>
+
+        <div className="dashboard-content">
+          <section className="dashboard-welcome">
+            <div><span className="section-kicker">Panel de monitoreo</span><h1>Buenos días, {user?.user_metadata?.full_name?.split(' ')[0] || 'Carlos'}.</h1><p>Todo marcha bien. Tu incubadora se encuentra dentro de los rangos configurados.</p></div>
+            <div className="online-status"><span><i /> En línea</span><small>Último dato: ahora</small></div>
+          </section>
+
+          {!isSupabaseConfigured && <div className="mode-banner"><Sparkles size={17} /><span><strong>Modo demostración.</strong> Los valores cambian automáticamente para simular lecturas MQTT.</span><button type="button" onClick={() => setBackupOpen(true)}>Ver siguiente paso</button></div>}
+
+          <section className="metrics-grid">
+            <MetricCard type="temperature" value={current.temperature.toFixed(2)} delta={`${stats.minTemperature}° a ${stats.maxTemperature}°`} />
+            <MetricCard type="humidity" value={current.humidity.toFixed(1)} delta={`Promedio ${stats.avgHumidity}%`} />
+            <article className="metric-card system-card">
+              <div className="metric-top"><div className="metric-icon"><Gauge size={21} /></div><button type="button"><MoreHorizontal size={20} /></button></div>
+              <span>Estado del sistema</span><strong className="system-value">Estable</strong>
+              <div className="metric-footer"><span><i /> Sensores activos</span><small>2 de 2</small></div>
+            </article>
+          </section>
+
+          <section className="dashboard-layout">
+            <article className="chart-card dashboard-card">
+              <div className="card-heading">
+                <div><span>Tendencia de parámetros</span><small>Promedio de temperatura: {stats.avgTemperature} °C</small></div>
+                <div className="chart-controls">
+                  <div className="metric-switch"><button className={metric === 'temperature' ? 'active' : ''} onClick={() => setMetric('temperature')} type="button">Temperatura</button><button className={metric === 'humidity' ? 'active' : ''} onClick={() => setMetric('humidity')} type="button">Humedad</button></div>
+                  <select value={range} onChange={(event) => setRange(event.target.value)} aria-label="Rango del gráfico"><option>1 h</option><option>6 h</option><option>24 h</option></select>
