@@ -6,10 +6,90 @@
     <meta name="theme-color" content="#f5f6f2" />
     <meta name="description" content="Monitoreo inteligente para incubadoras de codornices" />
     <title>Nido IoT | Monitoreo de incubadora</title>
-    <script type="module" crossorigin src="/TESIS/assets/index-C46o92yr.js"></script>
-    <link rel="stylesheet" crossorigin href="/TESIS/assets/index-BI-pJMt-.css">
+    <style>
+      *{box-sizing:border-box}body{margin:0;background:#f7f8f5;font-family:system-ui,sans-serif;color:#2d5141}
+      #loader{min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px}
+      #loader div{display:flex;flex-direction:column;align-items:center;gap:12px}
+      #loader b{font-size:22px}#loader span{font-size:13px;color:#6d7771}
+      #loader i{width:30px;height:30px;border:3px solid #dce8df;border-top-color:#2d5141;border-radius:50%;animation:spin .8s linear infinite}
+      #loader.error i{display:none}#loader.error span{max-width:520px;color:#9f4a3b;line-height:1.5}
+      @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.2.7",
+          "react/jsx-runtime": "https://esm.sh/react@19.2.7/jsx-runtime",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.7/client?external=react",
+          "lucide-react": "https://esm.sh/lucide-react@1.20.0?external=react",
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.108.2"
+        }
+      }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   </head>
   <body>
     <div id="root"></div>
+    <div id="loader"><div><i></i><b>Nido IoT</b><span>Preparando la demostración completa…</span></div></div>
+    <script type="module">
+      const rawBase = 'https://raw.githubusercontent.com/cPaz08/TESIS/main/prototipo-nido-iot/'
+      const version = '0a43ddc03e210cae319c08c46b55aadf4ec5a2f9'
+      const appParts = ['00','01','02','03','04','05']
+      const styleParts = ['00','01','02','03a','03b','04','05']
+
+      async function read(path) {
+        const response = await fetch(`${rawBase}${path}?v=${version}`)
+        if (!response.ok) throw new Error(`No se pudo cargar ${path} (${response.status}).`)
+        return response.text()
+      }
+
+      try {
+        const [appChunks, cssChunks, supabaseSource, mockSource] = await Promise.all([
+          Promise.all(appParts.map((part) => read(`.source-parts/App.jsx.${part}`))),
+          Promise.all(styleParts.map((part) => read(`.source-parts/styles.css.${part}`))),
+          read('src/lib/supabase.js'),
+          read('src/lib/mockData.js'),
+        ])
+
+        const style = document.createElement('style')
+        style.textContent = cssChunks.join('')
+        document.head.appendChild(style)
+
+        let appSource = appChunks.join('')
+          .replace("import { isSupabaseConfigured, supabase } from './lib/supabase'", '')
+          .replace("import { createNextReading, demoDevice, demoUser, initialReadings } from './lib/mockData'", '')
+
+        const embeddedSupabase = supabaseSource.replace(/export const /g, 'const ')
+        const embeddedMock = mockSource
+          .replace(/export const /g, 'const ')
+          .replace(/export function /g, 'function ')
+
+        const source = `${embeddedSupabase}\n${embeddedMock}\n${appSource}`
+        const compiled = Babel.transform(source, {
+          filename: 'App.jsx',
+          sourceType: 'module',
+          presets: [['react', { runtime: 'automatic' }]],
+        }).code
+
+        const moduleUrl = URL.createObjectURL(new Blob([compiled], { type: 'text/javascript' }))
+        const [{ default: App }, React, { createRoot }] = await Promise.all([
+          import(moduleUrl),
+          import('react'),
+          import('react-dom/client'),
+        ])
+
+        document.getElementById('loader').remove()
+        createRoot(document.getElementById('root')).render(
+          React.createElement(React.StrictMode, null, React.createElement(App)),
+        )
+        setTimeout(() => URL.revokeObjectURL(moduleUrl), 1000)
+      } catch (error) {
+        console.error(error)
+        const loader = document.getElementById('loader')
+        loader.classList.add('error')
+        loader.querySelector('b').textContent = 'No se pudo abrir la demostración'
+        loader.querySelector('span').textContent = `${error.message} Recarga la página para intentarlo nuevamente.`
+      }
+    </script>
   </body>
 </html>
